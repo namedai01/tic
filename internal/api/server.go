@@ -26,7 +26,9 @@ type Server struct {
 	unifiedAIService    *services.UnifiedAIService
 	enhancedChatService *services.EnhancedChatService
 	vectorService       *services.VectorService
+	documentService     *services.DocumentService
 	aiHandler           *handlers.AIHandler
+	documentHandler     *handlers.DocumentHandler
 }
 
 func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
@@ -50,9 +52,11 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 	knowledgeService := services.NewKnowledgeService(db, openAIService, vectorService)
 	chatService := services.NewChatService(db, openAIService, knowledgeService)
 	enhancedChatService := services.NewEnhancedChatService(db, unifiedAIService, knowledgeService)
+	documentService := services.NewDocumentService(db, unifiedAIService, log.Default())
 	
 	// Initialize handlers
 	aiHandler := handlers.NewAIHandler(enhancedChatService)
+	documentHandler := handlers.NewDocumentHandler(documentService, log.Default())
 
 	server := &Server{
 		app:                 app,
@@ -65,7 +69,9 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 		unifiedAIService:    unifiedAIService,
 		enhancedChatService: enhancedChatService,
 		vectorService:       vectorService,
+		documentService:     documentService,
 		aiHandler:           aiHandler,
+		documentHandler:     documentHandler,
 	}
 
 	// Middleware
@@ -135,6 +141,12 @@ func (s *Server) setupRoutes(api fiber.Router) {
 	ai.Get("/providers", s.aiHandler.GetAvailableProviders)
 	ai.Post("/providers/primary", s.aiHandler.SetPrimaryProvider)
 	ai.Post("/compare", s.aiHandler.CompareProviders)
+
+	// Document processing routes
+	documents := api.Group("/documents")
+	documents.Post("/process", s.documentHandler.ProcessDocument)
+	documents.Get("/parse", s.documentHandler.ParseDocument)
+	documents.Post("/process-wb", s.documentHandler.ProcessWBDocument)
 }
 
 func errorHandler(c *fiber.Ctx, err error) error {
