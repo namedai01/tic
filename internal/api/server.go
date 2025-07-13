@@ -27,8 +27,10 @@ type Server struct {
 	enhancedChatService *services.EnhancedChatService
 	vectorService       *services.VectorService
 	documentService     *services.DocumentService
+	assistantService    *services.OpenAIAssistantService
 	aiHandler           *handlers.AIHandler
 	documentHandler     *handlers.DocumentHandler
+	assistantHandler    *handlers.OpenAIAssistantHandler
 }
 
 func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
@@ -54,9 +56,14 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 	enhancedChatService := services.NewEnhancedChatService(db, unifiedAIService, knowledgeService)
 	documentService := services.NewDocumentService(db, unifiedAIService, log.Default())
 	
+	// Initialize OpenAI Assistant service with default thread ID
+	defaultThreadID := "thread_5GyQSnIxNy8uwMN2liLPuphc" // Your example thread ID
+	assistantService := services.NewOpenAIAssistantService(cfg.OpenAIKey, defaultThreadID, log.Default())
+	
 	// Initialize handlers
 	aiHandler := handlers.NewAIHandler(enhancedChatService)
 	documentHandler := handlers.NewDocumentHandler(documentService, log.Default())
+	assistantHandler := handlers.NewOpenAIAssistantHandler(assistantService, log.Default())
 
 	server := &Server{
 		app:                 app,
@@ -70,8 +77,10 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 		enhancedChatService: enhancedChatService,
 		vectorService:       vectorService,
 		documentService:     documentService,
+		assistantService:    assistantService,
 		aiHandler:           aiHandler,
 		documentHandler:     documentHandler,
+		assistantHandler:    assistantHandler,
 	}
 
 	// Middleware
@@ -147,6 +156,14 @@ func (s *Server) setupRoutes(api fiber.Router) {
 	documents.Post("/process", s.documentHandler.ProcessDocument)
 	documents.Get("/parse", s.documentHandler.ParseDocument)
 	documents.Post("/process-wb", s.documentHandler.ProcessWBDocument)
+
+	// OpenAI Assistant routes
+	assistant := api.Group("/assistant")
+	assistant.Get("/health", s.assistantHandler.HealthCheck)
+	assistant.Post("/chat", s.assistantHandler.ChatWithAssistant)
+	assistant.Post("/chat/custom", s.assistantHandler.ChatWithCustomWorkflow)
+	assistant.Post("/threads", s.assistantHandler.CreateThread)
+	assistant.Get("/threads/:thread_id/messages", s.assistantHandler.GetThreadMessages)
 }
 
 func errorHandler(c *fiber.Ctx, err error) error {

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/unidoc/unioffice/document"
+	// "github.com/unidoc/unioffice/document" // Removed unused import
 	"tic-knowledge-system/internal/models"
 	"gorm.io/gorm"
 )
@@ -35,14 +35,14 @@ type DocumentParseRequest struct {
 	ChunkSize    int    `json:"chunk_size,omitempty"` // For splitting large documents
 }
 
-type DocumentParseResult struct {
+type LegacyDocumentParseResult struct {
 	KnowledgeEntries []models.KnowledgeEntry `json:"knowledge_entries"`
 	TotalChunks      int                     `json:"total_chunks"`
 	ParsedAt         time.Time               `json:"parsed_at"`
 	OriginalFile     string                  `json:"original_file"`
 }
 
-func (s *DocumentParserService) ParseWordDocument(req DocumentParseRequest) (*DocumentParseResult, error) {
+func (s *DocumentParserService) ParseWordDocument(req DocumentParseRequest) (*LegacyDocumentParseResult, error) {
 	log.Printf("[INFO] Starting document parsing for file: %s", req.FilePath)
 	
 	// Validate file extension
@@ -86,7 +86,7 @@ func (s *DocumentParserService) ParseWordDocument(req DocumentParseRequest) (*Do
 		log.Printf("[INFO] Created knowledge entry for chunk %d/%d, ID: %s", i+1, len(chunks), entry.ID)
 	}
 
-	result := &DocumentParseResult{
+	result := &LegacyDocumentParseResult{
 		KnowledgeEntries: knowledgeEntries,
 		TotalChunks:      len(chunks),
 		ParsedAt:         time.Now(),
@@ -100,24 +100,11 @@ func (s *DocumentParserService) ParseWordDocument(req DocumentParseRequest) (*Do
 func (s *DocumentParserService) extractWordContent(filePath string) (string, error) {
 	log.Printf("[DEBUG] Opening Word document: %s", filePath)
 	
-	// Open the Word document
-	doc, err := document.Open(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to open document: %w", err)
-	}
-	defer doc.Close()
-
-	var content strings.Builder
+	// TODO: This function uses unioffice library which has licensing issues
+	// Use the DocumentService.ParseDOCXFile instead
+	return "", fmt.Errorf("this function is deprecated, use DocumentService.ParseDOCXFile instead")
 	
-	// Extract text from all paragraphs
-	for _, para := range doc.Paragraphs() {
-		// Get text from all runs in the paragraph
-		for _, run := range para.Runs() {
-			content.WriteString(run.Text())
-		}
-		content.WriteString("\n")
-	}
-
+	/*
 	// Extract text from tables
 	for _, table := range doc.Tables() {
 		for _, row := range table.Rows() {
@@ -152,10 +139,9 @@ func (s *DocumentParserService) extractWordContent(filePath string) (string, err
 		}
 	}
 
-	text := content.String()
-	log.Printf("[DEBUG] Extracted %d characters from Word document", len(text))
-	
-	return strings.TrimSpace(text), nil
+	log.Printf("[DEBUG] Extracted %d characters from Word document", content.Len())
+	return content.String(), nil
+	*/
 }
 
 func (s *DocumentParserService) splitContent(content string, chunkSize int) []string {
@@ -310,7 +296,7 @@ func (s *DocumentParserService) generateTitleFromFilename(filePath string) strin
 }
 
 // ParseDocumentFromPath is a helper function to parse a document with minimal configuration
-func (s *DocumentParserService) ParseDocumentFromPath(filePath, createdBy string) (*DocumentParseResult, error) {
+func (s *DocumentParserService) ParseDocumentFromPath(filePath, createdBy string) (*LegacyDocumentParseResult, error) {
 	req := DocumentParseRequest{
 		FilePath:  filePath,
 		CreatedBy: createdBy,
