@@ -1,12 +1,17 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"time"
+
+	"tic-knowledge-system/internal/models"
+	"tic-knowledge-system/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"tic-knowledge-system/internal/services"
+	"gorm.io/gorm"
 )
 
 // ErrorResponse represents an error response
@@ -65,6 +70,47 @@ func (h *AIHandler) ProcessChatWithAI(c *fiber.Ctx) error {
 
 	log.Printf("[INFO] Processing enhanced chat for user: %s, provider: %s", req.UserID, req.PreferredProvider)
 
+	// --- TRACKING LOGIC START ---
+	db := c.Locals("db").(*gorm.DB)
+	t := time.Now()
+	hour := t.Hour()
+	topicID := 0
+	timeRange := ""
+	switch {
+	case hour >= 6 && hour < 12:
+		topicID = 1
+		timeRange = "Morning (6AM - 12PM)"
+	case hour >= 12 && hour < 18:
+		topicID = 2
+		timeRange = "Afternoon (12PM - 6PM)"
+	case hour >= 18 && hour < 24:
+		topicID = 3
+		timeRange = "Evening (6PM - 12AM)"
+	default:
+		topicID = 4
+		timeRange = "Night (12AM - 6AM)"
+	}
+	// Increment TopicQuestionStat
+	var topicStat models.TopicQuestionStat
+	if err := db.Where("topic_id = ?", topicID).First(&topicStat).Error; err == nil {
+		topicStat.Count++
+		db.Save(&topicStat)
+	} else {
+		topicStat = models.TopicQuestionStat{TopicID: uint(topicID), Count: 1}
+		db.Create(&topicStat)
+	}
+	// Increment TimeDistributionStat
+	var timeStat models.TimeDistributionStat
+	if err := db.Where("time_range = ?", timeRange).First(&timeStat).Error; err == nil {
+		timeStat.Count++
+		db.Save(&timeStat)
+	} else {
+		timeStat = models.TimeDistributionStat{TimeRange: timeRange, Count: 1}
+		db.Create(&timeStat)
+	}
+	// --- TRACKING LOGIC END ---
+
+	start := time.Now()
 	// Process the chat request
 	response, err := h.enhancedChatService.ProcessChat(c.Context(), req)
 	if err != nil {
@@ -77,10 +123,21 @@ func (h *AIHandler) ProcessChatWithAI(c *fiber.Ctx) error {
 
 	log.Printf("[INFO] Chat processed successfully using provider: %s", response.Provider)
 
-	return c.Status(200).JSON(fiber.Map{
+	resp := fiber.Map{
 		"success": true,
 		"data":    response,
-	})
+	}
+	responseJSON, _ := json.Marshal(resp)
+	responseTime := time.Since(start).Milliseconds()
+	if db != nil {
+		db.Create(&models.TrackedChatLog{
+			APIName:       "ai/chat",
+			RequestMsg:    req.Message,
+			ResponseValue: string(responseJSON),
+			ResponseTime:  responseTime,
+		})
+	}
+	return c.Status(200).JSON(resp)
 }
 
 // GetAvailableProviders returns the list of available AI providers
@@ -94,7 +151,7 @@ func (h *AIHandler) GetAvailableProviders(c *fiber.Ctx) error {
 	log.Printf("[INFO] Getting available AI providers")
 
 	providers := h.enhancedChatService.GetAvailableProviders()
-	
+
 	providerStrings := make([]string, len(providers))
 	for i, provider := range providers {
 		providerStrings[i] = string(provider)
@@ -143,7 +200,7 @@ func (h *AIHandler) SetPrimaryProvider(c *fiber.Ctx) error {
 	}
 
 	provider := services.AIProvider(req.Provider)
-	
+
 	if err := h.enhancedChatService.SetPrimaryProvider(provider); err != nil {
 		log.Printf("[ERROR] Failed to set primary provider: %v", err)
 		return c.Status(400).JSON(ErrorResponse{
@@ -219,7 +276,7 @@ func (h *AIHandler) CompareProviders(c *fiber.Ctx) error {
 	// Test each provider
 	for _, providerStr := range req.Providers {
 		provider := services.AIProvider(providerStr)
-		
+
 		chatReq := services.EnhancedChatRequest{
 			Message:           req.Message,
 			UserID:            userID,

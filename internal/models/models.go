@@ -171,9 +171,9 @@ type UploadedDocument struct {
 	FilePath         string         `json:"file_path" gorm:"not null"` // Local file path
 	FileSize         int64          `json:"file_size" gorm:"not null"`
 	MimeType         string         `json:"mime_type" gorm:"not null"`
-	OpenAIFileID     string         `json:"openai_file_id"` // OpenAI file ID from step 1
+	OpenAIFileID     string         `json:"openai_file_id"`  // OpenAI file ID from step 1
 	VectorStoreID    string         `json:"vector_store_id"` // Vector store ID (fixed: vs_6873699daedc8191bb505a14254eeab3)
-	VectorFileID     string         `json:"vector_file_id"` // Vector file ID from step 2
+	VectorFileID     string         `json:"vector_file_id"`  // Vector file ID from step 2
 	Status           DocumentStatus `json:"status" gorm:"not null;default:'uploaded'"`
 	ErrorMessage     string         `json:"error_message"` // Error details if processing failed
 	UploadedBy       uuid.UUID      `json:"uploaded_by" gorm:"type:uuid;not null"`
@@ -188,9 +188,9 @@ type UploadedDocument struct {
 type DocumentStatus string
 
 const (
-	DocumentUploaded         DocumentStatus = "uploaded"         // File uploaded to local storage
-	DocumentSentToOpenAI     DocumentStatus = "sent_to_openai"   // Step 1 completed
-	DocumentAddedToVector    DocumentStatus = "added_to_vector"  // Step 2 completed
+	DocumentUploaded         DocumentStatus = "uploaded"        // File uploaded to local storage
+	DocumentSentToOpenAI     DocumentStatus = "sent_to_openai"  // Step 1 completed
+	DocumentAddedToVector    DocumentStatus = "added_to_vector" // Step 2 completed
 	DocumentProcessingFailed DocumentStatus = "processing_failed"
 )
 
@@ -251,4 +251,13 @@ type TimeDistributionStat struct {
 	Count     int       `gorm:"default:0"`
 	Percent   int       `gorm:"default:0"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+}
+
+type TrackedChatLog struct {
+	ID            uint      `gorm:"primaryKey"`
+	APIName       string    `gorm:"size:255;not null;index"`
+	RequestMsg    string    `gorm:"type:text"`
+	ResponseValue string    `gorm:"type:text"`
+	ResponseTime  int64     `gorm:"not null"` // milliseconds
+	CreatedAt     time.Time `gorm:"autoCreateTime"`
 }
