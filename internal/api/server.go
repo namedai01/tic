@@ -27,9 +27,11 @@ type Server struct {
 	enhancedChatService *services.EnhancedChatService
 	vectorService       *services.VectorService
 	documentService     *services.DocumentService
+	fileUploadService   *services.FileUploadService
 	assistantService    *services.OpenAIAssistantService
 	aiHandler           *handlers.AIHandler
 	documentHandler     *handlers.DocumentHandler
+	fileUploadHandler   *handlers.FileUploadHandler
 	assistantHandler    *handlers.OpenAIAssistantHandler
 }
 
@@ -56,6 +58,11 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 	enhancedChatService := services.NewEnhancedChatService(db, unifiedAIService, knowledgeService)
 	documentService := services.NewDocumentService(db, unifiedAIService, log.Default())
 	
+	// Initialize file upload service
+	uploadDir := "./uploads" // You can configure this
+	vectorStoreID := "vs_6873699daedc8191bb505a14254eeab3" // Fixed vector store ID
+	fileUploadService := services.NewFileUploadService(db, cfg.OpenAIKey, vectorStoreID, uploadDir)
+	
 	// Initialize OpenAI Assistant service with default thread ID
 	defaultThreadID := "thread_5GyQSnIxNy8uwMN2liLPuphc" // Your example thread ID
 	assistantService := services.NewOpenAIAssistantService(cfg.OpenAIKey, defaultThreadID, log.Default())
@@ -63,6 +70,7 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 	// Initialize handlers
 	aiHandler := handlers.NewAIHandler(enhancedChatService)
 	documentHandler := handlers.NewDocumentHandler(documentService, log.Default())
+	fileUploadHandler := handlers.NewFileUploadHandler(fileUploadService, db, log.Default())
 	assistantHandler := handlers.NewOpenAIAssistantHandler(assistantService, log.Default())
 
 	server := &Server{
@@ -77,9 +85,11 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 		enhancedChatService: enhancedChatService,
 		vectorService:       vectorService,
 		documentService:     documentService,
+		fileUploadService:   fileUploadService,
 		assistantService:    assistantService,
 		aiHandler:           aiHandler,
 		documentHandler:     documentHandler,
+		fileUploadHandler:   fileUploadHandler,
 		assistantHandler:    assistantHandler,
 	}
 
@@ -162,6 +172,11 @@ func (s *Server) setupRoutes(api fiber.Router) {
 	documents.Post("/process", s.documentHandler.ProcessDocument)
 	documents.Get("/parse", s.documentHandler.ParseDocument)
 	documents.Post("/process-wb", s.documentHandler.ProcessWBDocument)
+	
+	// File upload routes
+	documents.Post("/upload", s.fileUploadHandler.UploadDocument)
+	documents.Get("/:id/status", s.fileUploadHandler.GetDocumentStatus)
+	documents.Get("/", s.fileUploadHandler.ListDocuments)
 
 	// OpenAI Assistant routes
 	assistant := api.Group("/assistant")

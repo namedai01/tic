@@ -163,6 +163,37 @@ const (
 	IncompleFeedback   FeedbackType = "incomplete"
 )
 
+// UploadedDocument represents a document uploaded to the system and OpenAI
+type UploadedDocument struct {
+	ID               uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	FileName         string         `json:"file_name" gorm:"not null" validate:"required"`
+	OriginalFileName string         `json:"original_file_name" gorm:"not null"`
+	FilePath         string         `json:"file_path" gorm:"not null"` // Local file path
+	FileSize         int64          `json:"file_size" gorm:"not null"`
+	MimeType         string         `json:"mime_type" gorm:"not null"`
+	OpenAIFileID     string         `json:"openai_file_id"` // OpenAI file ID from step 1
+	VectorStoreID    string         `json:"vector_store_id"` // Vector store ID (fixed: vs_6873699daedc8191bb505a14254eeab3)
+	VectorFileID     string         `json:"vector_file_id"` // Vector file ID from step 2
+	Status           DocumentStatus `json:"status" gorm:"not null;default:'uploaded'"`
+	ErrorMessage     string         `json:"error_message"` // Error details if processing failed
+	UploadedBy       uuid.UUID      `json:"uploaded_by" gorm:"type:uuid;not null"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// Relations
+	Uploader User `json:"uploader,omitempty" gorm:"foreignKey:UploadedBy"`
+}
+
+type DocumentStatus string
+
+const (
+	DocumentUploaded         DocumentStatus = "uploaded"         // File uploaded to local storage
+	DocumentSentToOpenAI     DocumentStatus = "sent_to_openai"   // Step 1 completed
+	DocumentAddedToVector    DocumentStatus = "added_to_vector"  // Step 2 completed
+	DocumentProcessingFailed DocumentStatus = "processing_failed"
+)
+
 // VectorEmbedding represents vector embeddings for semantic search
 type VectorEmbedding struct {
 	ID               uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
