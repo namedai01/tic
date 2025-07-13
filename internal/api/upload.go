@@ -77,11 +77,11 @@ func RegisterUploadRoutes(app fiber.Router, db *gorm.DB) {
 		return c.JSON(fiber.Map{
 			"message": "Context file uploaded successfully",
 			"file": fiber.Map{
-				"name": record.FileName,
-				"labels": record.Labels,
+				"name":        record.FileName,
+				"labels":      record.Labels,
 				"description": record.Description,
-				"status": record.Status,
-				"updated": record.UpdatedAt,
+				"status":      record.Status,
+				"updated":     record.UpdatedAt,
 			},
 		})
 	})
@@ -102,11 +102,19 @@ func RegisterUploadRoutes(app fiber.Router, db *gorm.DB) {
 		result := make([]fiber.Map, 0, len(files))
 		for _, f := range files {
 			result = append(result, fiber.Map{
-				"name": f.FileName,
-				"path": f.FilePath,
+				"name":        f.FileName,
+				"path":        f.FilePath,
 				"uploaded_at": f.UploadTime,
 			})
 		}
 		return c.JSON(fiber.Map{"files": result})
+	})
+
+	app.Get("/tracked-chat-logs", func(c *fiber.Ctx) error {
+		var logs []models.TrackedChatLog
+		if err := db.Order("created_at desc").Find(&logs).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch tracked chat logs"})
+		}
+		return c.JSON(fiber.Map{"logs": logs})
 	})
 }
