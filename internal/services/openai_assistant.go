@@ -51,8 +51,8 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 type ChatAssistantRequest struct {
 	Message      string `json:"message" validate:"required"`
 	AssistantID  string `json:"assistant_id" validate:"required"`
-	ThreadID     string `json:"thread_id,omitempty"`     // Optional, will use default if not provided
-	DelaySeconds int    `json:"delay_seconds,omitempty"` // Optional delay in seconds, defaults to 5
+	ThreadID     string `json:"thread_id,omitempty"`   // Optional, will use default if not provided
+	TimeoutSeconds int  `json:"timeout_seconds,omitempty"` // Optional timeout in seconds, defaults to 30
 }
 
 // ChatAssistantResponse represents the response from assistant chat
@@ -113,13 +113,23 @@ func (s *OpenAIAssistantService) ChatWithAssistant(ctx context.Context, req Chat
 	}
 	s.logger.Printf("Run created successfully: %s", run.ID)
 	
-	// Step 3: Sleep for specified seconds (default 5)
-	delaySeconds := req.DelaySeconds
-	if delaySeconds <= 0 {
-		delaySeconds = 5 // Default to 5 seconds
+	// Step 3: Wait for run completion instead of fixed delay
+	timeoutSeconds := req.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 30 // Default to 30 seconds timeout
 	}
-	s.logger.Printf("Step 3: Waiting %d seconds for processing...", delaySeconds)
-	time.Sleep(time.Duration(delaySeconds) * time.Second)
+	s.logger.Printf("Step 3: Waiting for run %s to complete (timeout: %d seconds)...", run.ID, timeoutSeconds)
+	
+	startTime := time.Now()
+	finalStatus, err := s.WaitForRunCompletion(ctx, threadID, run.ID, time.Duration(timeoutSeconds)*time.Second)
+	waitDuration := time.Since(startTime)
+	
+	if err != nil {
+		s.logger.Printf("Warning: Run completion wait failed after %v: %v", waitDuration, err)
+		// Continue to get messages even if wait failed
+	} else {
+		s.logger.Printf("Run %s completed with status: %s after %v", run.ID, finalStatus, waitDuration)
+	}
 	
 	// Step 4: Get messages with run_id
 	s.logger.Printf("Step 4: Retrieving messages ONLY for run %s", run.ID)
@@ -130,22 +140,22 @@ func (s *OpenAIAssistantService) ChatWithAssistant(ctx context.Context, req Chat
 	s.logger.Printf("Retrieved %d messages specifically for run %s", len(messages), run.ID)
 	
 	// Check run status
-	runStatus, err := s.getRunStatus(ctx, threadID, run.ID)
-	if err != nil {
-		s.logger.Printf("Warning: Could not get run status: %v", err)
-		runStatus = "unknown"
-	}
+	// runStatus, err := s.getRunStatus(ctx, threadID, run.ID)
+	// if err != nil {
+	// 	s.logger.Printf("Warning: Could not get run status: %v", err)
+	// 	runStatus = "unknown"
+	// }
 	
 	response := &ChatAssistantResponse{
 		ThreadID:    threadID,
 		RunID:       run.ID,
 		Messages:    messages,
-		Status:      runStatus,
+		Status:      finalStatus,
 		ProcessedAt: time.Now(),
 		Metadata: map[string]interface{}{
 			"assistant_id":       req.AssistantID,
 			"original_message":   req.Message,
-			"delay_seconds":      delaySeconds,
+			"timeout_seconds":    timeoutSeconds,
 			"workflow_completed": true,
 		},
 	}
@@ -191,6 +201,8 @@ func (s *OpenAIAssistantService) getMessagesWithRunID(ctx context.Context, threa
 	limit := 100
 	order := "desc"
 	
+	// Note: ListMessage API doesn't support filtering by runID directly
+	// Parameters: ctx, threadID, limit, order, after, before
 	messagesList, err := s.client.ListMessage(ctx, threadID, &limit, &order, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list messages: %w", err)
@@ -312,7 +324,10 @@ func (s *OpenAIAssistantService) WaitForRunCompletion(ctx context.Context, threa
 	deadline := time.Now().Add(timeout)
 	
 	for time.Now().Before(deadline) {
+		startTime := time.Now()
 		status, err := s.getRunStatus(ctx, threadID, runID)
+		waitDuration := time.Since(startTime)
+		s.logger.Printf("getRunStatus after %v", waitDuration)
 		if err != nil {
 			return "", err
 		}
@@ -328,7 +343,7 @@ func (s *OpenAIAssistantService) WaitForRunCompletion(ctx context.Context, threa
 		}
 		
 		// Wait before checking again
-		time.Sleep(1 * time.Second)
+		time.Sleep(11 * time.Second)
 	}
 	
 	return "", fmt.Errorf("timeout waiting for run completion")
