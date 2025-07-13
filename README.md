@@ -10,10 +10,60 @@ Products serving operations are often complex, have many features, and require t
 
 - **Template-based Knowledge Entry**: Pre-defined templates for consistent knowledge capture
 - **RAG Content Management**: Manage and organize knowledge base content
-- **AI Chatbot**: OpenAI-powered chatbot for answering operational questions
+- **Dual AI Integration**: Support for both OpenAI and Google Gemini APIs with seamless switching
+- **AI Chatbot**: Multi-provider AI-powered chatbot for answering operational questions
 - **Feedback System**: Continuous improvement through user feedback
 - **Vector Search**: Semantic search capabilities for better knowledge retrieval
 - **User Management**: Role-based access control
+
+## 🤖 AI Integration
+
+### Supported AI Providers
+
+#### OpenAI
+- **Models**: GPT-4, GPT-3.5-turbo
+- **Embeddings**: text-embedding-ada-002
+- **Features**: Chat completion, text embeddings, content generation
+
+#### Google Gemini
+- **Models**: gemini-1.5-flash, gemini-1.5-pro
+- **Features**: Chat completion, text embeddings, content generation
+- **Advantages**: Fast response times, cost-effective for high-volume usage
+
+### Provider Management
+- **Primary Provider**: Configure default AI provider (OpenAI or Gemini)
+- **Fallback Support**: Automatic fallback to secondary provider on failure
+- **Per-Request Selection**: Choose specific provider for individual requests
+- **Provider Comparison**: Test same query across multiple providers
+- **Unified API**: Seamless interface regardless of underlying provider
+
+### New API Endpoints
+```bash
+# Get available providers
+GET /api/v1/ai/providers
+
+# Enhanced chat with provider selection
+POST /api/v1/ai/chat
+{
+  "message": "Your question",
+  "user_id": "uuid",
+  "preferred_provider": "gemini"  # optional
+}
+
+# Set primary provider
+POST /api/v1/ai/providers/primary
+{
+  "provider": "gemini"
+}
+
+# Compare providers
+POST /api/v1/ai/compare
+{
+  "message": "Your question",
+  "user_id": "uuid",
+  "providers": ["openai", "gemini"]
+}
+```
 
 ## 🚀 Solution
 
@@ -28,6 +78,8 @@ A comprehensive system that allows employees to:
 - **Backend**: Go 1.23+ with Fiber v2.52.0 framework
 - **Primary Database**: PostgreSQL 15 for structured data
 - **Vector Database**: Qdrant for semantic search capabilities
+- **Cache Layer**: Redis for performance optimization
+- **AI Integration**: Dual provider support (OpenAI + Google Gemini)
 - **Cache**: Redis for performance optimization
 - **AI Integration**: OpenAI API (GPT-4 + text-embedding-ada-002)
 - **Authentication**: JWT-based authentication system
@@ -39,12 +91,26 @@ A comprehensive system that allows employees to:
 - Go 1.21+
 - PostgreSQL
 - Qdrant vector database
-- OpenAI API key
+- OpenAI API key (optional but recommended)
+- Google Gemini API key (optional but recommended)
 
 ### Installation
 
 1. Clone the repository
-2. Copy `.env.example` to `.env` and configure your environment variables
+2. Copy `.env.example` to `.env` and configure your environment variables:
+   ```bash
+   # Required AI Configuration (choose at least one)
+   OPENAI_API_KEY=your_openai_api_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
+   
+   # AI Provider Selection
+   PRIMARY_AI_PROVIDER=openai  # or "gemini"
+   EMBEDDING_PROVIDER=openai   # or "gemini"
+   
+   # Model Configuration
+   OPENAI_MODEL=gpt-4
+   GEMINI_MODEL=gemini-1.5-flash
+   ```
 3. Install dependencies:
    ```bash
    go mod download
@@ -273,7 +339,7 @@ curl -X POST http://localhost:8080/api/v1/knowledge \
   }'
 ```
 
-### 3. Chat with AI Assistant
+### 3. Chat with AI Assistant (Original OpenAI endpoint)
 ```bash
 curl -X POST http://localhost:8080/api/v1/chat \
   -H "Content-Type: application/json" \
@@ -282,6 +348,49 @@ curl -X POST http://localhost:8080/api/v1/chat \
     "user_id": "user-uuid-here"
   }'
 ```
+
+### 4. Enhanced AI Chat with Provider Selection
+```bash
+# Chat with OpenAI
+curl -X POST http://localhost:8080/api/v1/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Explain machine learning in simple terms",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "preferred_provider": "openai"
+  }'
+
+# Chat with Gemini
+curl -X POST http://localhost:8080/api/v1/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Explain artificial intelligence in simple terms", 
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "preferred_provider": "gemini"
+  }'
+
+# Compare responses from both providers
+curl -X POST http://localhost:8080/api/v1/ai/compare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What are the benefits of cloud computing?",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "providers": ["openai", "gemini"]
+  }'
+```
+
+### 5. Test Gemini Integration
+Run the comprehensive test script:
+```bash
+./test_gemini_integration.sh
+```
+
+This script tests:
+- Provider discovery
+- OpenAI and Gemini integration
+- Provider comparison
+- Primary provider switching
+- Conversation context handling
 
 **Example Response:**
 ```json

@@ -28,6 +28,14 @@ type Config struct {
 	MaxTokens            string
 	Temperature          string
 
+	// Gemini config
+	GeminiAPIKey string
+	GeminiModel  string
+
+	// AI Provider config
+	PrimaryAIProvider string
+	EmbeddingProvider string
+
 	// Vector DB config
 	QdrantHost           string
 	QdrantPort           string
@@ -58,6 +66,12 @@ func Load() (*Config, error) {
 		OpenAIEmbeddingModel: getEnv("OPENAI_EMBEDDING_MODEL", "text-embedding-ada-002"),
 		MaxTokens:            getEnv("MAX_TOKENS", "1000"),
 		Temperature:          getEnv("TEMPERATURE", "0.7"),
+
+		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-1.5-pro"),
+
+		PrimaryAIProvider: getEnv("PRIMARY_AI_PROVIDER", "openai"),
+		EmbeddingProvider: getEnv("EMBEDDING_PROVIDER", "openai"),
 
 		QdrantHost:           getEnv("QDRANT_HOST", "localhost"),
 		QdrantPort:           getEnv("QDRANT_PORT", "6333"),

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"log"
 	"strconv"
+	"tic-knowledge-system/internal/api/handlers"
 	"tic-knowledge-system/internal/config"
 	"tic-knowledge-system/internal/services"
 
@@ -14,13 +16,17 @@ import (
 )
 
 type Server struct {
-	app              *fiber.App
-	cfg              *config.Config
-	db               *gorm.DB
-	knowledgeService *services.KnowledgeService
-	chatService      *services.ChatService
-	openAIService    *services.OpenAIService
-	vectorService    *services.VectorService
+	app                 *fiber.App
+	cfg                 *config.Config
+	db                  *gorm.DB
+	knowledgeService    *services.KnowledgeService
+	chatService         *services.ChatService
+	openAIService       *services.OpenAIService
+	geminiService       *services.GeminiService
+	unifiedAIService    *services.UnifiedAIService
+	enhancedChatService *services.EnhancedChatService
+	vectorService       *services.VectorService
+	aiHandler           *handlers.AIHandler
 }
 
 func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
@@ -34,18 +40,32 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 	temperature := float32(temperature64)
 
 	openAIService := services.NewOpenAIService(cfg.OpenAIKey, cfg.OpenAIModel, cfg.OpenAIEmbeddingModel, maxTokens, temperature)
+	geminiService, err := services.NewGeminiService(cfg.GeminiAPIKey, cfg.GeminiModel, maxTokens, temperature)
+	if err != nil {
+		log.Printf("[WARNING] Failed to initialize Gemini service: %v", err)
+		// Continue without Gemini service
+	}
+	unifiedAIService := services.NewUnifiedAIService(openAIService, geminiService, services.AIProvider(cfg.PrimaryAIProvider))
 	vectorService := services.NewVectorService(cfg.VectorDBURL, cfg.QdrantCollectionName)
 	knowledgeService := services.NewKnowledgeService(db, openAIService, vectorService)
 	chatService := services.NewChatService(db, openAIService, knowledgeService)
+	enhancedChatService := services.NewEnhancedChatService(db, unifiedAIService, knowledgeService)
+	
+	// Initialize handlers
+	aiHandler := handlers.NewAIHandler(enhancedChatService)
 
 	server := &Server{
-		app:              app,
-		cfg:              cfg,
-		db:               db,
-		knowledgeService: knowledgeService,
-		chatService:      chatService,
-		openAIService:    openAIService,
-		vectorService:    vectorService,
+		app:                 app,
+		cfg:                 cfg,
+		db:                  db,
+		knowledgeService:    knowledgeService,
+		chatService:         chatService,
+		openAIService:       openAIService,
+		geminiService:       geminiService,
+		unifiedAIService:    unifiedAIService,
+		enhancedChatService: enhancedChatService,
+		vectorService:       vectorService,
+		aiHandler:           aiHandler,
 	}
 
 	// Middleware
@@ -108,6 +128,13 @@ func (s *Server) setupRoutes(api fiber.Router) {
 	// User routes (basic implementation)
 	users := api.Group("/users")
 	users.Get("/me", s.getCurrentUser)
+
+	// AI routes (new Gemini integration)
+	ai := api.Group("/ai")
+	ai.Post("/chat", s.aiHandler.ProcessChatWithAI)
+	ai.Get("/providers", s.aiHandler.GetAvailableProviders)
+	ai.Post("/providers/primary", s.aiHandler.SetPrimaryProvider)
+	ai.Post("/compare", s.aiHandler.CompareProviders)
 }
 
 func errorHandler(c *fiber.Ctx, err error) error {
