@@ -185,23 +185,30 @@ func (h *OpenAIAssistantHandler) ChatWithCustomWorkflow(c *fiber.Ctx) error {
 	// Optional fields
 	threadID, _ := reqData["thread_id"].(string)
 	waitTimeStr, _ := reqData["wait_time"].(string)
+	timeoutSecondsFloat, _ := reqData["timeout_seconds"].(float64) // JSON numbers come as float64
 	waitForCompletion, _ := reqData["wait_for_completion"].(bool)
 	
-	// Parse wait time (default 5 seconds)
-	waitTime := 5 * time.Second
-	if waitTimeStr != "" {
+	// Parse timeout_seconds (takes priority over wait_time)
+	timeoutSeconds := 30 // default
+	if timeoutSecondsFloat > 0 {
+		timeoutSeconds = int(timeoutSecondsFloat)
+	} else if waitTimeStr != "" {
+		// Fallback to wait_time for backward compatibility
 		if seconds, err := strconv.Atoi(waitTimeStr); err == nil && seconds > 0 {
-			waitTime = time.Duration(seconds) * time.Second
+			timeoutSeconds = seconds
 		}
 	}
 	
-	h.logger.Printf("Processing custom chat request with %v wait time", waitTime)
+	waitTime := time.Duration(timeoutSeconds) * time.Second
+	
+	h.logger.Printf("Processing custom chat request with %v timeout", waitTime)
 	
 	// Create request
 	req := services.ChatAssistantRequest{
-		Message:     message,
-		AssistantID: assistantID,
-		ThreadID:    threadID,
+		Message:        message,
+		AssistantID:    assistantID,
+		ThreadID:       threadID,
+		TimeoutSeconds: timeoutSeconds,
 	}
 	
 	if waitForCompletion {
@@ -210,11 +217,11 @@ func (h *OpenAIAssistantHandler) ChatWithCustomWorkflow(c *fiber.Ctx) error {
 	}
 	
 	// Standard workflow with custom wait time
-	return h.chatWithCustomWait(c, req, waitTime)
+	return h.chatWithCustomWait(c, req, waitTime, timeoutSeconds)
 }
 
 // chatWithCustomWait executes chat with custom wait time
-func (h *OpenAIAssistantHandler) chatWithCustomWait(c *fiber.Ctx, req services.ChatAssistantRequest, waitTime time.Duration) error {
+func (h *OpenAIAssistantHandler) chatWithCustomWait(c *fiber.Ctx, req services.ChatAssistantRequest, waitTime time.Duration, timeoutSeconds int) error {
 	// Use provided thread ID or default
 	threadID := req.ThreadID
 	if threadID == "" {
@@ -238,7 +245,7 @@ func (h *OpenAIAssistantHandler) chatWithCustomWait(c *fiber.Ctx, req services.C
 	
 	// Add custom metadata
 	response.Metadata["custom_workflow"] = true
-	response.Metadata["wait_time"] = waitTime.String()
+	response.Metadata["timeout_seconds"] = timeoutSeconds
 	
 	h.logger.Printf("Custom chat workflow completed successfully")
 	return c.JSON(response)
