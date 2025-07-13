@@ -180,7 +180,7 @@ func (s *Server) setupRoutes(api fiber.Router) {
 	// File upload routes
 	documents.Post("/upload", s.fileUploadHandler.UploadDocument)
 	documents.Get("/:id/status", s.fileUploadHandler.GetDocumentStatus)
-	documents.Get("/", s.fileUploadHandler.ListDocuments)
+	documents.Post("/", s.fileUploadHandler.ListDocuments)
 
 	// OpenAI Assistant routes
 	assistant := api.Group("/assistant")

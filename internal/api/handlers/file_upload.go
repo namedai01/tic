@@ -146,23 +146,51 @@ func (h *FileUploadHandler) GetDocumentStatus(c *fiber.Ctx) error {
 // @Summary List uploaded documents
 // @Description List uploaded documents with pagination
 // @Tags documents
+// @Accept json
 // @Produce json
-// @Param limit query int false "Limit" default(10)
-// @Param offset query int false "Offset" default(0)
-// @Param uploaded_by query string false "Filter by uploader user ID"
+// @Param request body map[string]interface{} false "Request body with limit, offset, uploaded_by"
 // @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /documents [get]
+// @Router /documents [post]
 func (h *FileUploadHandler) ListDocuments(c *fiber.Ctx) error {
-	// Parse query parameters
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-	offset, _ := strconv.Atoi(c.Query("offset", "0"))
-	
+	// Default values
+	limit := 10
+	offset := 0
 	var uploadedBy *uuid.UUID
-	if uploadedByStr := c.Query("uploaded_by"); uploadedByStr != "" {
-		if parsedUUID, err := uuid.Parse(uploadedByStr); err == nil {
-			uploadedBy = &parsedUUID
+
+	// Parse JSON body if provided
+	var requestBody map[string]interface{}
+	if err := c.BodyParser(&requestBody); err == nil {
+		// Parse limit from request body
+		if limitVal, ok := requestBody["limit"]; ok {
+			if limitFloat, ok := limitVal.(float64); ok {
+				limit = int(limitFloat)
+			} else if limitStr, ok := limitVal.(string); ok {
+				if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
+					limit = parsedLimit
+				}
+			}
+		}
+
+		// Parse offset from request body
+		if offsetVal, ok := requestBody["offset"]; ok {
+			if offsetFloat, ok := offsetVal.(float64); ok {
+				offset = int(offsetFloat)
+			} else if offsetStr, ok := offsetVal.(string); ok {
+				if parsedOffset, err := strconv.Atoi(offsetStr); err == nil {
+					offset = parsedOffset
+				}
+			}
+		}
+
+		// Parse uploaded_by from request body
+		if uploadedByVal, ok := requestBody["uploaded_by"]; ok {
+			if uploadedByStr, ok := uploadedByVal.(string); ok && uploadedByStr != "" {
+				if parsedUUID, err := uuid.Parse(uploadedByStr); err == nil {
+					uploadedBy = &parsedUUID
+				}
+			}
 		}
 	}
 
