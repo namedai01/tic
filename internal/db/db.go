@@ -26,6 +26,12 @@ func Connect(databaseURL string) (*gorm.DB, error) {
 		&models.ChatMessage{},
 		&models.Feedback{},
 		&models.VectorEmbedding{},
+		&models.UploadedFile{},
+		&models.APICallLog{},
+		&models.ContextFile{},
+		&models.Topic{},
+		&models.TopicQuestionStat{},
+		&models.TimeDistributionStat{},
 	)
 	if err != nil {
 		return nil, err

@@ -99,6 +99,12 @@ func NewServer(cfg *config.Config, db *gorm.DB) *fiber.App {
 	api := app.Group("/api/v1")
 	server.setupRoutes(api)
 
+	// Register upload routes
+	RegisterUploadRoutes(api, db)
+
+	// Register context dashboard route
+	api.Get("/context-dashboard", handlers.GetContextDashboard(db))
+
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{

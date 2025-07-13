@@ -2,17 +2,15 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:13
     environment:
-      POSTGRES_DB: tic_knowledge_db
+      POSTGRES_DB: tic_knowledge
       POSTGRES_USER: username
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: tan12345
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U username -d tic_knowledge_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tic_knowledge"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -45,24 +43,24 @@ services:
       timeout: 10s
       retries: 3
 
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - DATABASE_URL=postgres://username:password@postgres:5432/tic_knowledge_db?sslmode=disable
-      - VECTOR_DB_URL=http://qdrant:6333
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - .env:/app/.env
-    restart: unless-stopped
+#  app:
+#    build: .
+#    ports:
+#      - "8080:8080"
+#    environment:
+#      - DATABASE_URL=postgres://username:password@postgres:5432/tic_knowledge_db?sslmode=disable
+#      - VECTOR_DB_URL=http://qdrant:6333
+#      - REDIS_URL=redis://redis:6379
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      qdrant:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#    volumes:
+#      - .env:/app/.env
+#    restart: unless-stopped
 
 volumes:
   postgres_data:
